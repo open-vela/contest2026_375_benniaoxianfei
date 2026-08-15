@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>手语识别日志</title>
+<style>
+  :root { --bg:#14161a; --panel:#1d2126; --border:#333a41; --accent:#4fa8e8;
+          --accent2:#59cbe8; --text:#e8eaed; --dim:#8a9199; --ok:#4cc38a; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); min-height:100vh;
+         font-family:"Microsoft YaHei",system-ui,sans-serif; padding:20px; }
+  .header { display:flex; align-items:center; gap:16px; margin-bottom:16px; }
+  .header h1 { font-size:22px; }
+  .header .live { color:var(--ok); font-size:13px; }
+  .stats { display:flex; gap:16px; margin-bottom:16px; }
+  .stat { background:var(--panel); border:1px solid var(--border);
+          border-radius:8px; padding:12px 20px; min-width:120px; }
+  .stat .num { font-size:24px; font-weight:700; color:var(--accent2); }
+  .stat .lbl { font-size:12px; color:var(--dim); }
+  table { width:100%; border-collapse:collapse; background:var(--panel);
+          border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  th,td { padding:10px 16px; text-align:left; border-bottom:1px solid var(--border); }
+  th { background:#24292f; color:var(--dim); font-size:13px; }
+  td { font-size:14px; }
+  .conf { display:inline-block; min-width:52px; padding:2px 10px; border-radius:12px;
+          font-size:13px; font-weight:700; }
+  .conf.high { background:rgba(76,195,138,.18); color:var(--ok); }
+  .conf.mid  { background:rgba(245,178,59,.18); color:#f5b23b; }
+  .conf.low  { background:rgba(229,72,77,.18); color:#e5484d; }
+  .empty { text-align:center; color:var(--dim); padding:40px; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>🤟 手语识别日志</h1>
+    <span class="live" id="liveDot">● 连接中</span>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="num" id="stTotal">0</div><div class="lbl">总记录</div></div>
+    <div class="stat"><div class="num" id="stToday">0</div><div class="lbl">今日</div></div>
+    <div class="stat"><div class="num" id="stLast">--</div><div class="lbl">最近识别</div></div>
+  </div>
+  <table>
+    <thead><tr><th>时间</th><th>手势</th><th>置信度</th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+<script>
+  async function refresh() {
+    try {
+      const r = await fetch('/api/logs');
+      const logs = await r.json();
+      const tbody = document.getElementById('tbody');
+      tbody.innerHTML = '';
+      if (logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="empty">暂无记录——板端识别后会自动上传到这里</td></tr>';
+      } else {
+        const today = new Date().toDateString();
+        let todayCnt = 0;
+        for (const log of logs) {
+          const d = new Date(log.ts * 1000);
+          if (d.toDateString() === today) todayCnt++;
+          const confCls = log.confidence >= 80 ? 'high' : (log.confidence >= 60 ? 'mid' : 'low');
+          const row = document.createElement('tr');
+          row.innerHTML = `<td>${d.toLocaleString()}</td>
+                           <td>${log.gesture}</td>
+                           <td><span class="conf ${confCls}">${log.confidence}%</span></td>`;
+          tbody.appendChild(row);
+        }
+        document.getElementById('stTotal').textContent = logs.length;
+        document.getElementById('stToday').textContent = todayCnt;
+        document.getElementById('stLast').textContent = logs[0].gesture;
+      }
+      document.getElementById('liveDot').textContent = '● 在线';
+      document.getElementById('liveDot').style.color = 'var(--ok)';
+    } catch (e) {
+      document.getElementById('liveDot').textContent = '● 离线';
+      document.getElementById('liveDot').style.color = '#e5484d';
+    }
+  }
+  refresh();
+  setInterval(refresh, 3000);
+</script>
+</body>
+</html>
