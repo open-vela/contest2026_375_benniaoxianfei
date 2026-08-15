@@ -42,6 +42,21 @@ VID_EXTS = (".mp4", ".avi", ".mov", ".mkv", ".m4v")
 FRAME_STEP = 10         # 视频每 10 帧抽 1 帧（约 0.3 秒一张）
 
 
+def imread_cn(path):
+    """读图（支持中文路径，cv2.imread 在 Windows 上不支持非 ASCII 路径）"""
+    data = np.fromfile(path, dtype=np.uint8)
+    return cv2.imdecode(data, cv2.IMREAD_COLOR)
+
+
+def imwrite_cn(path, img):
+    """写图（支持中文路径）"""
+    ext = os.path.splitext(path)[1]
+    ok, buf = cv2.imencode(ext, img)
+    if ok:
+        buf.tofile(path)
+    return ok
+
+
 def load_images_from(class_dir):
     """返回该类的图片路径列表（照片 + 视频抽帧临时文件）"""
     paths = []
@@ -60,7 +75,7 @@ def load_images_from(class_dir):
                     break
                 if idx % FRAME_STEP == 0:
                     tmp = os.path.join(class_dir, f"_frame_{idx}.jpg")
-                    cv2.imwrite(tmp, frame)
+                    imwrite_cn(tmp, frame)
                     paths.append(tmp)
                     tmp_frames.append(tmp)
                 idx += 1
@@ -69,7 +84,7 @@ def load_images_from(class_dir):
     return paths, tmp_frames
 
 
-def augment(img):
+def augment(img, allow_flip):
     """对单张图做多种增强，返回生成图列表"""
     outs = []
     h, w = img.shape[:2]
@@ -79,8 +94,8 @@ def augment(img):
         angle = random.uniform(-15, 15)
         M = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1.0)
         a = cv2.warpAffine(a, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
-        # 水平翻转（数字手势别翻！见下注释）
-        if random.random() < 0.5 and "数字" not in "":
+        # 水平翻转：仅对非数字手势开启（数字手势翻转会改变语义）
+        if allow_flip and random.random() < 0.5:
             a = cv2.flip(a, 1)
         # 亮度/对比度
         a = cv2.convertScaleAbs(a, alpha=random.uniform(0.8, 1.2),
@@ -123,7 +138,7 @@ def main():
         # 先缩放
         imgs = []
         for p in paths:
-            img = cv2.imread(p)
+            img = imread_cn(p)
             if img is None:
                 continue
             img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
@@ -135,17 +150,18 @@ def main():
         val_imgs = imgs[:n_val]
         train_imgs = imgs[n_val:]
 
-        # 训练集增强
+        # 训练集增强（数字类不禁翻转？数字手势语义敏感，统一关闭翻转）
+        is_digit = cls[0].isdigit()
         os.makedirs(os.path.join(TRAIN, cls), exist_ok=True)
         os.makedirs(os.path.join(VAL, cls), exist_ok=True)
         n = 0
         for img in train_imgs:
-            for aug in augment(img):
-                cv2.imwrite(os.path.join(TRAIN, cls, f"{n:05d}.jpg"), aug)
+            for aug in augment(img, allow_flip=not is_digit):
+                imwrite_cn(os.path.join(TRAIN, cls, f"{n:05d}.jpg"), aug)
                 n += 1
         print(f"  → 训练 {n} 张（增强后）")
         for i, img in enumerate(val_imgs):
-            cv2.imwrite(os.path.join(VAL, cls, f"{i:05d}.jpg"), img)
+            imwrite_cn(os.path.join(VAL, cls, f"{i:05d}.jpg"), img)
         print(f"  → 验证 {len(val_imgs)} 张")
 
         # 清理临时帧
