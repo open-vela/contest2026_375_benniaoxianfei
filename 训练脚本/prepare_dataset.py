@@ -40,6 +40,7 @@ np.random.seed(SEED)
 IMG_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 VID_EXTS = (".mp4", ".avi", ".mov", ".mkv", ".m4v")
 FRAME_STEP = 10         # 视频每 10 帧抽 1 帧（约 0.3 秒一张）
+SKIP_FIRST = 15         # 跳过视频开头 15 帧（手还没进入画面，避免噪音）
 
 
 def imread_cn(path):
@@ -73,14 +74,14 @@ def load_images_from(class_dir):
                 ok, frame = cap.read()
                 if not ok:
                     break
-                if idx % FRAME_STEP == 0:
+                if idx >= SKIP_FIRST and idx % FRAME_STEP == 0:
                     tmp = os.path.join(class_dir, f"_frame_{idx}.jpg")
                     imwrite_cn(tmp, frame)
                     paths.append(tmp)
                     tmp_frames.append(tmp)
                 idx += 1
             cap.release()
-            print(f"  视频 {f}: 抽出 {idx // FRAME_STEP} 帧")
+            print(f"  视频 {f}: 有效帧 {idx - SKIP_FIRST}，抽 {max(0, (idx - SKIP_FIRST) // FRAME_STEP)} 帧")
     return paths, tmp_frames
 
 

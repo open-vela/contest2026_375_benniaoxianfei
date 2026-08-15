@@ -1,0 +1,13 @@
+{
+  "team": "contest2026_375_benniaoxianfei",
+  "github_login": "931258065",
+  "sessions": [
+    {
+      "session_id": "session-0830937e-b41f-498c-a918-fab693bb922e",
+      "tool": "dsh",
+      "date": "2026-08-15",
+      "file": "dsh__session-0830937e-b41f-498c-a918-fab693bb922e.jsonl",
+      "note": "DeepSeek Harness 会话（手动导出，非官方采集器）"
+    }
+  ]
+}
