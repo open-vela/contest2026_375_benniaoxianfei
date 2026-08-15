@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>手语翻译终端 · 界面预览（模拟 1024x600 屏幕）</title>
+<style>
+  :root {
+    --bg: #14161a; --panel: #1d2126; --panel2: #24292f;
+    --border: #333a41; --accent: #4fa8e8; --accent2: #59cbe8;
+    --text: #e8eaed; --dim: #8a9199; --ok: #4cc38a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d0f12; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; min-height: 100vh;
+    font-family: "Microsoft YaHei", system-ui, sans-serif; color: var(--text);
+    padding: 16px;
+  }
+  .hint { color: var(--dim); font-size: 13px; margin-bottom: 12px; }
+  .screen {
+    width: 1024px; height: 600px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 12px;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,.6);
+  }
+  /* 状态栏 */
+  .statusbar {
+    height: 36px; background: var(--panel); display: flex;
+    align-items: center; justify-content: space-between;
+    padding: 0 16px; border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .statusbar .dot { display:inline-block; width:8px; height:8px; border-radius:50%;
+    background:var(--ok); margin-right:6px; }
+  /* 相机区 */
+  .camera {
+    margin: 14px 16px 0; height: 300px; border-radius: 8px;
+    background:
+      radial-gradient(circle at 50% 45%, #23292f 0%, #171b1f 55%, #101317 100%);
+    border: 1px solid var(--border); position: relative;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .camera::before { content:""; position:absolute; inset:0;
+    background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+    background-size: 40px 40px; }
+  .camera .ph { color: var(--dim); font-size: 16px; z-index: 1;
+    text-align:center; line-height: 1.8; }
+  .camera .frame-corner { position:absolute; width:44px; height:44px;
+    border:2px solid var(--accent2); opacity:.7; }
+  .fc1 { top:16px; left:16px; border-right:none; border-bottom:none; }
+  .fc2 { top:16px; right:16px; border-left:none; border-bottom:none; }
+  .fc3 { bottom:16px; left:16px; border-right:none; border-top:none; }
+  .fc4 { bottom:16px; right:16px; border-left:none; border-top:none; }
+  /* 结果区 */
+  .result-area { display:flex; align-items:center; gap:20px;
+    padding: 14px 16px 4px; }
+  .result-label { font-size: 30px; font-weight: 700; min-width: 260px;
+    color: var(--accent2); letter-spacing: 1px; }
+  .conf { flex:1; }
+  .conf .conf-text { font-size: 13px; color: var(--dim); margin-bottom: 6px; }
+  .bar { height: 16px; background: var(--panel2); border-radius: 8px;
+    overflow:hidden; border:1px solid var(--border); }
+  .bar .fill { height:100%; width:0%; background: linear-gradient(90deg,
+    var(--accent), var(--accent2)); border-radius: 8px; transition: width .4s; }
+  /* 控制区 */
+  .controls { margin-top: auto; padding: 10px 16px 16px;
+    display:flex; align-items:center; gap:12px; }
+  .mode-btn { flex: 0 0 92px; height: 44px; border-radius: 8px;
+    border:1px solid var(--border); background: var(--panel2); color: var(--text);
+    font-size: 15px; cursor: pointer; transition: all .15s; }
+  .mode-btn.active { background: var(--accent); border-color: var(--accent);
+    color:#0d1420; font-weight:700; }
+  .sim-btn { flex: 0 0 130px; height: 44px; border-radius: 8px;
+    border:none; background: var(--ok); color:#0d1420; font-size: 15px;
+    font-weight:700; cursor:pointer; }
+  .sim-btn:active { transform: scale(.97); }
+  .th { flex:1; display:flex; align-items:center; gap:10px;
+    font-size: 14px; color: var(--dim); }
+  .th input[type=range] { flex:1; accent-color: var(--accent); }
+  .th .th-val { color: var(--text); font-weight:700; min-width: 34px; }
+</style>
+</head>
+<body>
+  <div class="hint">手语翻译终端界面预览（对应 应用骨架/sign_translate/ui.cxx 布局，可交互）</div>
+  <div class="screen">
+    <!-- 状态栏 -->
+    <div class="statusbar">
+      <span><span class="dot"></span>OpenVela 手语翻译</span>
+      <span id="statusText">等待识别...</span>
+    </div>
+
+    <!-- 相机预览区 -->
+    <div class="camera">
+      <div class="frame-corner fc1"></div>
+      <div class="frame-corner fc2"></div>
+      <div class="frame-corner fc3"></div>
+      <div class="frame-corner fc4"></div>
+      <div class="ph">相机预览区（MIPI-CSI）<br><span style="font-size:13px">TODO Phase 3：接真实摄像头帧</span></div>
+    </div>
+
+    <!-- 结果区 -->
+    <div class="result-area">
+      <div class="result-label" id="resultLabel">等待识别...</div>
+      <div class="conf">
+        <div class="conf-text">置信度</div>
+        <div class="bar"><div class="fill" id="confFill"></div></div>
+      </div>
+    </div>
+
+    <!-- 控制区 -->
+    <div class="controls">
+      <button class="mode-btn active" data-mode="0">数字</button>
+      <button class="mode-btn" data-mode="1">字母</button>
+      <button class="mode-btn" data-mode="2">词</button>
+      <button class="sim-btn" id="simBtn">▶ 模拟识别</button>
+      <div class="th">
+        <span>阈值</span>
+        <input type="range" id="thSlider" min="50" max="99" value="60">
+        <span class="th-val" id="thVal">60%</span>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const labels = [
+    "0 零","1 一","2 二","3 三","4 四",
+    "5 五","6 六","7 七","8 八","9 九",
+    "你好","谢谢"
+  ];
+  const labelsMode = [
+    ["0 零","1 一","2 二","3 三","4 四","5 五","6 六","7 七","8 八","9 九"],
+    ["A","B","C","D","E","F","G","H","I","J"],
+    ["你好","谢谢","爱","好","行","吃","水","来","走","家"]
+  ];
+
+  let mode = 0;
+  const resultLabel = document.getElementById('resultLabel');
+  const confFill = document.getElementById('confFill');
+  const statusText = document.getElementById('statusText');
+  const thVal = document.getElementById('thVal');
+  const thSlider = document.getElementById('thSlider');
+
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      mode = +b.dataset.mode;
+      resultLabel.textContent = '等待识别...';
+      confFill.style.width = '0%';
+      statusText.textContent = '模式：' + ['数字','字母','词'][mode];
+    });
+  });
+
+  thSlider.addEventListener('input', () => {
+    thVal.textContent = thSlider.value + '%';
+  });
+
+  document.getElementById('simBtn').addEventListener('click', () => {
+    const list = labelsMode[mode];
+    const idx = Math.floor(Math.random() * list.length);
+    const conf = 72 + Math.floor(Math.random() * 26); // 72-97
+    resultLabel.textContent = list[idx] + '  (' + conf + '%)';
+    confFill.style.width = conf + '%';
+    statusText.textContent = '识别成功：' + list[idx] + '（模拟语音播报）';
+  });
+</script>
+</body>
+</html>
