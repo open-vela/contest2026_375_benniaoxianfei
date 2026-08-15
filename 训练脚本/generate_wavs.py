@@ -23,6 +23,8 @@ import sys
 
 import edge_tts
 
+sys.stdout.reconfigure(encoding="utf-8")  # Windows 控制台中文/emoji 显示
+
 OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "语音")
 VOICE = "zh-CN-XiaoxiaoNeural"   # 中文女声（可换 zh-CN-YunxiNeural 男声）
 RATE = "+0%"                     # 语速

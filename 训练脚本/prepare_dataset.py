@@ -59,14 +59,14 @@ def imwrite_cn(path, img):
 
 
 def load_images_from(class_dir):
-    """返回该类的图片路径列表（照片 + 视频抽帧临时文件）"""
-    paths = []
+    """返回该类的 (素材单元, 路径) 列表：照片每张一个单元，视频每段一个单元"""
+    units = []          # [(unit_id, path)]
     tmp_frames = []
     for f in sorted(os.listdir(class_dir)):
         p = os.path.join(class_dir, f)
         ext = os.path.splitext(f)[1].lower()
         if ext in IMG_EXTS:
-            paths.append(p)
+            units.append((f, p))
         elif ext in VID_EXTS:
             cap = cv2.VideoCapture(p)
             idx = 0
@@ -77,12 +77,12 @@ def load_images_from(class_dir):
                 if idx >= SKIP_FIRST and idx % FRAME_STEP == 0:
                     tmp = os.path.join(class_dir, f"_frame_{idx}.jpg")
                     imwrite_cn(tmp, frame)
-                    paths.append(tmp)
+                    units.append((f, tmp))      # 帧归属同一视频单元
                     tmp_frames.append(tmp)
                 idx += 1
             cap.release()
             print(f"  视频 {f}: 有效帧 {idx - SKIP_FIRST}，抽 {max(0, (idx - SKIP_FIRST) // FRAME_STEP)} 帧")
-    return paths, tmp_frames
+    return units, tmp_frames
 
 
 def augment(img, allow_flip):
@@ -133,25 +133,27 @@ def main():
 
     for cls in classes:
         class_dir = os.path.join(RAW, cls)
-        paths, tmp_frames = load_images_from(class_dir)
-        print(f"[{cls}] 原始 {len(paths)} 张")
+        units, tmp_frames = load_images_from(class_dir)
+        print(f"[{cls}] 素材单元 {len(units)} 个")
 
-        # 先缩放
-        imgs = []
-        for p in paths:
+        # 读取并缩放
+        unit_imgs = []          # [(unit_id, img)]
+        for unit_id, p in units:
             img = imread_cn(p)
             if img is None:
                 continue
             img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
-            imgs.append(img)
+            unit_imgs.append((unit_id, img))
 
-        # 抽验证集（原始图层面抽，避免增强泄漏）
-        random.shuffle(imgs)
-        n_val = max(1, int(len(imgs) * VAL_RATIO))
-        val_imgs = imgs[:n_val]
-        train_imgs = imgs[n_val:]
+        # 按素材单元切分（视频整体进训练或验证，防同视频泄漏）
+        unit_ids = sorted({u for u, _ in unit_imgs})
+        random.shuffle(unit_ids)
+        n_val_units = max(1, int(len(unit_ids) * VAL_RATIO))
+        val_ids = set(unit_ids[:n_val_units])
+        val_imgs = [img for u, img in unit_imgs if u in val_ids]
+        train_imgs = [img for u, img in unit_imgs if u not in val_ids]
 
-        # 训练集增强（数字类不禁翻转？数字手势语义敏感，统一关闭翻转）
+        # 训练集增强（数字手势禁水平翻转，语义敏感）
         is_digit = cls[0].isdigit()
         os.makedirs(os.path.join(TRAIN, cls), exist_ok=True)
         os.makedirs(os.path.join(VAL, cls), exist_ok=True)
@@ -160,10 +162,10 @@ def main():
             for aug in augment(img, allow_flip=not is_digit):
                 imwrite_cn(os.path.join(TRAIN, cls, f"{n:05d}.jpg"), aug)
                 n += 1
-        print(f"  → 训练 {n} 张（增强后）")
+        print(f"  → 训练 {n} 张（增强后, {len(train_imgs)} 原始帧）")
         for i, img in enumerate(val_imgs):
             imwrite_cn(os.path.join(VAL, cls, f"{i:05d}.jpg"), img)
-        print(f"  → 验证 {len(val_imgs)} 张")
+        print(f"  → 验证 {len(val_imgs)} 张（来自 {len(val_ids)} 个独立素材单元）")
 
         # 清理临时帧
         for t in tmp_frames:
