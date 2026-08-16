@@ -6,7 +6,7 @@
 menuconfig EXAMPLES_SIGN_TRANSLATE
 	tristate "Sign Language Translate Terminal"
 	default n
-	depends on GRAPHICS_LVGL && TFLITEMICRO
+	depends on GRAPHICS_LVGL
 	---help---
 		Edge sign-language translation terminal app:
 		LVGL UI + TFLite Micro INT8 inference (camera -> model -> screen/voice).
@@ -29,5 +29,15 @@ config EXAMPLES_SIGN_TRANSLATE_THRESHOLD
 config EXAMPLES_SIGN_TRANSLATE_INTERVAL_MS
 	int "Inference interval (ms)"
 	default 200
+
+config EXAMPLES_SIGN_TRANSLATE_SIM
+	bool "SIM mode (no TFLite Micro)"
+	default n
+	depends on !TFLITEMICRO
+	---help---
+		Use a fake classifier (cycles through classes) so the app can be
+		built/run on the OpenVela emulator or any environment without
+		TFLite Micro. For the real board, leave this OFF and enable
+		CONFIG_TFLITEMICRO instead.
 
 endif # EXAMPLES_SIGN_TRANSLATE

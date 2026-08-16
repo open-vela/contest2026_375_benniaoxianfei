@@ -1,17 +1,23 @@
 /****************************************************************************
- * recognition.cxx —— TFLite Micro 推理封装
+ * recognition.cxx —— 识别引擎
  *
- * 模型约定（与 训练脚本/qat_train.py 一致）：
- *   - 输入：128x128x3 RGB 原始像素 [0,255]，张量类型/scale/zero_point 从模型读
- *     （转换时 inference_input_type=uint8；若为 int8 同样按参数适配）
- *   - 输出：类别数 的量化 softmax 概率（uint8 或 int8，按模型实际类型）
- *   - 模型 C 数组：model_data.cc（xxd -i 生成）
+ * 两种模式：
+ *   [默认/TFLM]  TFLite Micro 推理
+ *     - 输入：128x128x3 RGB 原始像素 [0,255]，张量类型/scale/zero_point 从模型读
+ *       （转换时 inference_input_type=uint8；若为 int8 同样按参数适配）
+ *     - 输出：类别数 的量化 softmax 概率（uint8 或 int8，按模型实际类型）
+ *     - 模型 C 数组：model_data.cc（gen_model_data.py 生成）
+ *   [CONFIG_EXAMPLES_SIGN_TRANSLATE_SIM]  模拟模式（无 TFLM）
+ *     - 用于 OpenVela 模拟器/无 TFLM 环境验证 UI 与交互流程
+ *     - 每 SIM_FRAME_STEP 帧轮换一个类别，置信度 85~95%
  ****************************************************************************/
 
 #include "recognition.h"
 
 #include <cstdio>
 #include <cstring>
+
+#ifndef CONFIG_EXAMPLES_SIGN_TRANSLATE_SIM
 
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
@@ -181,3 +187,49 @@ int recognition_class_count(void)
 {
   return s_class_count;
 }
+
+#else /* CONFIG_EXAMPLES_SIGN_TRANSLATE_SIM —— 模拟模式（无 TFLM） */
+
+#define SIM_CLASS_COUNT 10
+#define SIM_FRAME_STEP  20   /* 每 20 帧轮换一个类别 */
+#define SIM_CONF_BASE   88
+
+static int s_sim_class = 0;
+static int s_sim_frame = 0;
+
+int recognition_init(void)
+{
+  s_sim_class = 0;
+  s_sim_frame = 0;
+  std::printf("recognition: SIM 模式（无 TFLM，轮换 %d 类演示）\n",
+              SIM_CLASS_COUNT);
+  return RECOGNITION_OK;
+}
+
+int recognition_infer(const camera_frame_t *frame,
+                      recognition_result_t *result)
+{
+  if (frame == nullptr || frame->pixels == nullptr)
+    {
+      return RECOGNITION_ERR_INFER;
+    }
+
+  /* 每 SIM_FRAME_STEP 帧轮换类别，模拟"识别到不同手势" */
+  if (++s_sim_frame >= SIM_FRAME_STEP)
+    {
+      s_sim_frame = 0;
+      s_sim_class = (s_sim_class + 1) % SIM_CLASS_COUNT;
+    }
+
+  result->valid       = true;
+  result->class_index = s_sim_class;
+  result->confidence  = SIM_CONF_BASE + (s_sim_frame * 7) / SIM_FRAME_STEP;
+  return RECOGNITION_OK;
+}
+
+int recognition_class_count(void)
+{
+  return SIM_CLASS_COUNT;
+}
+
+#endif /* CONFIG_EXAMPLES_SIGN_TRANSLATE_SIM */
