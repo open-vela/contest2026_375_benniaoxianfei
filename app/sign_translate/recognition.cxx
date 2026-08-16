@@ -196,8 +196,7 @@ int recognition_class_count(void)
 
 static int s_sim_class = 0;
 static int s_sim_frame = 0;
-static int s_sim_guard  = 0;   /* 自愈守卫：绕过 goldfish 模拟器 BSS 被 boot 期覆盖的缺陷 */
-static int s_data_probe = 0x12345678;   /* .data 段探针：非零初始值 */
+static int s_sim_guard  = 0;   /* 自愈守卫：绕过 goldfish 模拟器 BSS 被启动期覆盖的缺陷 */
 
 /* goldfish 模拟器的应用 BSS 可能被启动期代码覆盖（KASAN/初始化流程），
  * 首次调用时用魔法值校验并重新初始化状态。板端（RISC-V）无此问题。 */
