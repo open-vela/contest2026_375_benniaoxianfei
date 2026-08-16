@@ -28,3 +28,4 @@ vm_exchange/
 deepseek_quota_watch/
 research_artifacts/
 训练脚本/qat_run.log
+训练脚本/模型/gesture_cnn_qat_int8.tflite
