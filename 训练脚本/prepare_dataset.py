@@ -147,11 +147,22 @@ def main():
 
         # 按素材单元切分（视频整体进训练或验证，防同视频泄漏）
         unit_ids = sorted({u for u, _ in unit_imgs})
-        random.shuffle(unit_ids)
-        n_val_units = max(1, int(len(unit_ids) * VAL_RATIO))
-        val_ids = set(unit_ids[:n_val_units])
-        val_imgs = [img for u, img in unit_imgs if u in val_ids]
-        train_imgs = [img for u, img in unit_imgs if u not in val_ids]
+        if len(unit_ids) >= 3:
+            # 素材充足：视频级切分（无泄漏）
+            random.shuffle(unit_ids)
+            n_val_units = max(1, int(len(unit_ids) * VAL_RATIO))
+            val_ids = set(unit_ids[:n_val_units])
+            val_imgs = [img for u, img in unit_imgs if u in val_ids]
+            train_imgs = [img for u, img in unit_imgs if u not in val_ids]
+            split_note = "视频级切分"
+        else:
+            # 素材不足（每类仅 1-2 个视频）：帧级切分，尽力而为
+            random.shuffle(unit_imgs)
+            n_val = max(1, int(len(unit_imgs) * VAL_RATIO))
+            val_imgs = [img for _, img in unit_imgs[:n_val]]
+            train_imgs = [img for _, img in unit_imgs[n_val:]]
+            val_ids = set()
+            split_note = "帧级切分(素材不足)"
 
         # 训练集增强（数字手势禁水平翻转，语义敏感）
         is_digit = cls[0].isdigit()
@@ -165,7 +176,7 @@ def main():
         print(f"  → 训练 {n} 张（增强后, {len(train_imgs)} 原始帧）")
         for i, img in enumerate(val_imgs):
             imwrite_cn(os.path.join(VAL, cls, f"{i:05d}.jpg"), img)
-        print(f"  → 验证 {len(val_imgs)} 张（来自 {len(val_ids)} 个独立素材单元）")
+        print(f"  → 验证 {len(val_imgs)} 张 [{split_note}]")
 
         # 清理临时帧
         for t in tmp_frames:
