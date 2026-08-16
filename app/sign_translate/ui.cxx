@@ -93,7 +93,7 @@ void ui_init(int mode, int threshold)
   /* --- 识别结果 --- */
 
   s_result_label = lv_label_create(scr);
-  lv_obj_set_style_text_font(s_result_label, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_font(s_result_label, &lv_font_montserrat_32, 0);
   lv_obj_align(s_result_label, LV_ALIGN_TOP_MID, 0, 250);
   lv_label_set_text(s_result_label, "等待识别...");
 

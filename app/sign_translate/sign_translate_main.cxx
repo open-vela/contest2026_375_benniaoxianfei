@@ -55,7 +55,7 @@ static void lvgl_init(void)
   lv_nuttx_dsc_init(&info);
   lv_nuttx_init(&info, &result);
 
-  if (result.inited == false)
+  if (result.disp == nullptr)
     {
       std::printf("sign_translate: LVGL display init FAILED\n");
     }
