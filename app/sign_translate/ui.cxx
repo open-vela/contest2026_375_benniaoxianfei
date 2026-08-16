@@ -149,6 +149,9 @@ void ui_show_result(int class_index, int confidence)
                     s_labels[class_index], confidence);
     }
 
+  /* 调试：确认推理定时器在驱动 UI 更新 */
+  std::printf("ui: result=%s\n", buf);
+
   lv_label_set_text(s_result_label, buf);
   lv_bar_set_value(s_conf_bar, confidence, LV_ANIM_ON);
 }

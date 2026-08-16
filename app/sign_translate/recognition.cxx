@@ -224,6 +224,11 @@ int recognition_infer(const camera_frame_t *frame,
   result->valid       = true;
   result->class_index = s_sim_class;
   result->confidence  = SIM_CONF_BASE + (s_sim_frame * 7) / SIM_FRAME_STEP;
+
+  /* 调试：确认 SIM 内部状态与写入 */
+  std::printf("rec: sim_class=%d sim_frame=%d -> cls=%d conf=%d\n",
+              s_sim_class, s_sim_frame,
+              result->class_index, result->confidence);
   return RECOGNITION_OK;
 }
 

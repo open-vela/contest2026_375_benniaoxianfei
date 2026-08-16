@@ -12,6 +12,10 @@
 
 #include <lvgl/lvgl.h>
 
+#ifdef CONFIG_LV_USE_NUTTX_LIBUV
+#include <uv.h>
+#endif
+
 #include "ui.h"
 #include "camera.h"
 #include "recognition.h"
@@ -36,6 +40,15 @@
 
 static lv_timer_t *g_infer_timer = nullptr;
 
+/* lv_nuttx_init 的结果（显示/输入句柄），供主循环的 uv 事件循环使用 */
+static lv_nuttx_result_t g_lv_result;
+
+/* 诊断：确认 LVGL tick 与定时器驱动是否正常 */
+static void diag_timer_cb(lv_timer_t *timer)
+{
+  std::printf("diag: tick=%lu\n", (unsigned long)lv_tick_get());
+}
+
 /****************************************************************************
  * Name: lvgl_init
  *
@@ -49,13 +62,12 @@ static void lvgl_init(void)
 {
   lv_init();
 
-  lv_nuttx_dsc_t   info;
-  lv_nuttx_result_t result;
+  lv_nuttx_dsc_t info;
 
   lv_nuttx_dsc_init(&info);
-  lv_nuttx_init(&info, &result);
+  lv_nuttx_init(&info, &g_lv_result);
 
-  if (result.disp == nullptr)
+  if (g_lv_result.disp == nullptr)
     {
       std::printf("sign_translate: LVGL display init FAILED\n");
     }
@@ -69,10 +81,13 @@ static void inference_timer_cb(lv_timer_t *timer)
 {
   camera_frame_t frame;
 
+  std::printf("infer: cb called\n");
+
   /* 1. 采集（当前为桩，TODO(Phase 3): MIPI-CSI 真采集） */
 
   if (camera_get_frame(&frame) != CAMERA_OK)
     {
+      std::printf("infer: camera fail\n");
       return;
     }
 
@@ -81,8 +96,13 @@ static void inference_timer_cb(lv_timer_t *timer)
   recognition_result_t result;
   if (recognition_infer(&frame, &result) != RECOGNITION_OK)
     {
+      std::printf("infer: recognition fail\n");
       return;
     }
+
+  std::printf("infer: class=%d conf=%d valid=%d thr=%d\n",
+              result.class_index, result.confidence, result.valid,
+              ui_get_threshold());
 
   /* 3. 阈值过滤 → 显示 + 播报 + 上传 */
 
@@ -143,15 +163,50 @@ extern "C" int main(int argc, FAR char *argv[])
                                   nullptr);
   lv_timer_ready(g_infer_timer);
 
-  /* 主循环 */
+  /* 诊断定时器（1 秒） */
+  lv_timer_t *diag = lv_timer_create(diag_timer_cb, 1000, nullptr);
+  lv_timer_ready(diag);
+
+  /* 主循环：CONFIG_LV_USE_NUTTX_LIBUV 时用 uv 事件循环驱动 LVGL
+   * 刷新（与 lvgldemo 一致），否则用普通 lv_timer_handler 轮询 */
 
   std::printf("sign_translate: running\n");
 
+#ifdef CONFIG_LV_USE_NUTTX_LIBUV
+  {
+    uv_loop_t ui_loop;
+    lv_nuttx_uv_t uv_info;
+    void *data;
+
+    uv_loop_init(&ui_loop);
+
+    lv_memset(&uv_info, 0, sizeof(uv_info));
+    uv_info.loop  = &ui_loop;
+    uv_info.disp  = g_lv_result.disp;
+    uv_info.indev = g_lv_result.indev;
+#ifdef CONFIG_UINPUT_TOUCH
+    uv_info.uindev = g_lv_result.utouch_indev;
+#endif
+
+    data = lv_nuttx_uv_init(&uv_info);
+    if (data == nullptr)
+      {
+        std::printf("sign_translate: lv_nuttx_uv_init FAILED\n");
+      }
+    else
+      {
+        std::printf("sign_translate: uv loop start\n");
+        uv_run(&ui_loop, UV_RUN_DEFAULT);
+        lv_nuttx_uv_deinit(&data);
+      }
+  }
+#else
   for (;;)
     {
       lv_timer_handler();
       usleep(5000);   /* 5ms，给 LVGL 刷屏留时间 */
     }
+#endif
 
   return 0;
 }
