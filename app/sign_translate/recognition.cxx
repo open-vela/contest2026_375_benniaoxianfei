@@ -1,9 +1,10 @@
 /****************************************************************************
  * recognition.cxx —— TFLite Micro 推理封装
  *
- * 模型约定（与 训练脚本/train_cnn.py 一致）：
- *   - 输入：128x128x3 RGB，INT8（scale/zero_point 从模型读）
- *   - 输出：类别数 的 INT8 softmax 概率
+ * 模型约定（与 训练脚本/qat_train.py 一致）：
+ *   - 输入：128x128x3 RGB 原始像素 [0,255]，张量类型/scale/zero_point 从模型读
+ *     （转换时 inference_input_type=uint8；若为 int8 同样按参数适配）
+ *   - 输出：类别数 的量化 softmax 概率（uint8 或 int8，按模型实际类型）
  *   - 模型 C 数组：model_data.cc（xxd -i 生成）
  ****************************************************************************/
 
@@ -39,12 +40,15 @@ static int s_class_count = 0;
  * Private Functions
  ****************************************************************************/
 
-/* 把 RGB888 帧缩放 + 量化写入 INT8 输入张量 */
+/* 把 RGB888 帧缩放 + 量化写入输入张量（uint8/int8 按模型实际类型适配）
+ * 量化公式：q = round(pixel/scale + zero_point)，与 infer_test.py 完全一致 */
 static void preprocess(const camera_frame_t *frame, TfLiteTensor *input)
 {
   const float scale   = input->params.scale;
   const int   zpoint  = input->params.zero_point;
-  int8_t     *in_data = tflite::GetTensorData<int8_t>(input);
+  const bool  is_u8   = (input->type == kTfLiteUInt8);
+  uint8_t    *u8_data = tflite::GetTensorData<uint8_t>(input);
+  int8_t     *i8_data = tflite::GetTensorData<int8_t>(input);
 
   for (int y = 0; y < INPUT_H; y++)
     {
@@ -56,34 +60,46 @@ static void preprocess(const camera_frame_t *frame, TfLiteTensor *input)
 
           for (int c = 0; c < INPUT_C; c++)
             {
-              float q = (pix[c] - zpoint) / scale;
+              float q = (float)pix[c] / scale + (float)zpoint;
               int idx = (y * INPUT_W + x) * INPUT_C + c;
-              in_data[idx] = (int8_t)(q < -128 ? -128 : (q > 127 ? 127 : q));
+              if (is_u8)
+                {
+                  int v = (int)(q + 0.5f);
+                  u8_data[idx] = (uint8_t)(v < 0 ? 0 : (v > 255 ? 255 : v));
+                }
+              else
+                {
+                  int v = (int)(q + 0.5f);
+                  i8_data[idx] = (int8_t)(v < -128 ? -128 : (v > 127 ? 127 : v));
+                }
             }
         }
     }
 }
 
-/* 从 INT8 输出取 argmax + 置信度 */
+/* 从量化输出取 argmax + 置信度（uint8/int8 按模型实际类型适配） */
 static void postprocess(TfLiteTensor *output, recognition_result_t *result)
 {
-  const int8_t *out = tflite::GetTensorData<int8_t>(output);
-  const float   scale = output->params.scale;
-  const int     zpoint = output->params.zero_point;
+  const float scale   = output->params.scale;
+  const int   zpoint  = output->params.zero_point;
+  const bool  is_u8   = (output->type == kTfLiteUInt8);
+  const uint8_t *u8_out = tflite::GetTensorData<uint8_t>(output);
+  const int8_t  *i8_out = tflite::GetTensorData<int8_t>(output);
 
   int    best = 0;
-  int    best_raw = out[0];
+  int    best_raw = 0;
   float  sum = 0.0f;
   float  probs[64];   /* 类别数上限，按实际调整 */
 
   for (int i = 0; i < s_class_count; i++)
     {
-      float p = (out[i] - zpoint) * scale;
+      int raw = is_u8 ? (int)u8_out[i] : (int)i8_out[i];
+      float p = ((float)raw - zpoint) * scale;
       probs[i] = p > 0 ? p : 0.0f;
       sum += probs[i];
-      if (out[i] > best_raw)
+      if (raw > best_raw)
         {
-          best_raw = out[i];
+          best_raw = raw;
           best = i;
         }
     }
@@ -109,15 +125,18 @@ int recognition_init(void)
       return RECOGNITION_ERR_MODEL;
     }
 
-  /* 算子注册：按模型实际算子增减 */
+  /* 算子注册：按模型实际算子增减
+   * 当前模型（含 Rescaling 首层）：CONV_2D / MAX_POOL_2D / QUANTIZE /
+   *                                RESHAPE / FULLY_CONNECTED / SOFTMAX */
   static tflite::MicroMutableOpResolver<12> resolver;
   resolver.AddConv2D();
   resolver.AddMaxPool2D();
+  resolver.AddQuantize();   /* Rescaling(1/255) 折叠成的量化节点 */
   resolver.AddReshape();
   resolver.AddFullyConnected();
   resolver.AddSoftmax();
-  resolver.AddRelu();
-  resolver.AddPad();         /* 若训练用 Same padding 转 explicit 时需要 */
+  resolver.AddRelu();       /* 备用（conv 已 fused relu 时用不到） */
+  resolver.AddPad();        /* 若训练用 Same padding 转 explicit 时需要 */
 
   static tflite::MicroInterpreter interpreter(
       model, resolver, s_tensor_arena, kTensorArenaSize);

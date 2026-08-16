@@ -38,26 +38,27 @@ static lv_timer_t *g_infer_timer = nullptr;
 
 /****************************************************************************
  * Name: lvgl_init
+ *
+ * 与 lvgldemo 相同的 OpenVela LVGL-NuttX 初始化：
+ *   - lv_nuttx_init() 自动挂载 /dev/fb0（或 goldfish GPU 帧缓冲）与 /dev/input0
+ *   - 板端（ESP32-P4）依赖 CONFIG_GRAPHICS_LVGL + CONFIG_LV_USE_NUTTX +
+ *     MIPI-DSI 屏驱动（EK73217BCGA）+ 触摸驱动
  ****************************************************************************/
 
 static void lvgl_init(void)
 {
   lv_init();
 
-  /* TODO(Phase 2/3): OpenVela 显示 + 触摸初始化。
-   *
-   * LVGL v9 的 NuttX 集成（OpenVela 内置 lvgl 提供）典型用法：
-   *
-   *   // 自动方式：挂载 /dev/fb0（或 lcd 设备）+ /dev/input0
-   *   lv_nuttx_init();
-   *
-   * 或显式方式：
-   *   lv_display_t *disp = lv_nuttx_fbdev_create(0, 0, NULL);
-   *   lv_nuttx_touchscreen_create(NULL);
-   *
-   * 板端依赖：CONFIG_GRAPHICS_LVGL、CONFIG_LV_USE_NUTTX、
-   *           MIPI-DSI 屏驱动（EK73217BCGA）、触摸驱动
-   */
+  lv_nuttx_dsc_t   info;
+  lv_nuttx_result_t result;
+
+  lv_nuttx_dsc_init(&info);
+  lv_nuttx_init(&info, &result);
+
+  if (result.inited == false)
+    {
+      std::printf("sign_translate: LVGL display init FAILED\n");
+    }
 }
 
 /****************************************************************************

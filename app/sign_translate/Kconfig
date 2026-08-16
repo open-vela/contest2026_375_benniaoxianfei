@@ -1,0 +1,33 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+menuconfig EXAMPLES_SIGN_TRANSLATE
+	tristate "Sign Language Translate Terminal"
+	default n
+	depends on GRAPHICS_LVGL && TFLITEMICRO
+	---help---
+		Edge sign-language translation terminal app:
+		LVGL UI + TFLite Micro INT8 inference (camera -> model -> screen/voice).
+
+if EXAMPLES_SIGN_TRANSLATE
+
+config EXAMPLES_SIGN_TRANSLATE_PRIORITY
+	int "sign_translate task priority"
+	default 100
+
+config EXAMPLES_SIGN_TRANSLATE_STACKSIZE
+	int "sign_translate stack size"
+	default 32768
+
+config EXAMPLES_SIGN_TRANSLATE_THRESHOLD
+	int "Default confidence threshold (%)"
+	default 60
+	range 50 99
+
+config EXAMPLES_SIGN_TRANSLATE_INTERVAL_MS
+	int "Inference interval (ms)"
+	default 200
+
+endif # EXAMPLES_SIGN_TRANSLATE
