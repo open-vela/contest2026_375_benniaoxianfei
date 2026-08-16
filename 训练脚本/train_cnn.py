@@ -105,10 +105,13 @@ print("浮点 tflite:", os.path.getsize(os.path.join(OUT, "gesture_cnn.tflite"))
 
 # ---------- INT8 量化（PTQ） ----------
 def rep_data():
-    """代表性数据集：从验证集取 100 张做校准"""
-    ds = val_ds.unbatch().take(100)
-    for x, _ in ds:
-        yield [tf.reshape(x, (1, IMG_SIZE, IMG_SIZE, 3))]
+    """代表性数据集校准。注意：喂原始 [0,255] 像素（不归一化），
+    与板端/infer_test 的输入一致，否则量化 scale 错位导致输入饱和塌缩"""
+    ds = keras.utils.image_dataset_from_directory(
+        VAL, image_size=(IMG_SIZE, IMG_SIZE), batch_size=32,
+        label_mode=None, shuffle=True, seed=42)
+    for x in ds.take(10):
+        yield [tf.cast(x, tf.float32)]
 
 converter = tf.lite.TFLiteConverter.from_keras_model(model)
 converter.optimizations = [tf.lite.Optimize.DEFAULT]

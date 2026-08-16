@@ -147,8 +147,8 @@ def main():
 
         # 按素材单元切分（视频整体进训练或验证，防同视频泄漏）
         unit_ids = sorted({u for u, _ in unit_imgs})
-        if len(unit_ids) >= 3:
-            # 素材充足：视频级切分（无泄漏）
+        if len(unit_ids) >= 2:
+            # 素材充足（每类 ≥2 个视频）：视频级切分（无泄漏）
             random.shuffle(unit_ids)
             n_val_units = max(1, int(len(unit_ids) * VAL_RATIO))
             val_ids = set(unit_ids[:n_val_units])
@@ -156,7 +156,7 @@ def main():
             train_imgs = [img for u, img in unit_imgs if u not in val_ids]
             split_note = "视频级切分"
         else:
-            # 素材不足（每类仅 1-2 个视频）：帧级切分，尽力而为
+            # 素材不足（每类仅 1 个视频）：帧级切分，尽力而为
             random.shuffle(unit_imgs)
             n_val = max(1, int(len(unit_imgs) * VAL_RATIO))
             val_imgs = [img for _, img in unit_imgs[:n_val]]
