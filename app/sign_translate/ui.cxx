@@ -36,11 +36,11 @@ static int s_mode = UI_MODE_DIGITS;
 static int s_class_count = 0;
 static int s_ui_guard = 0;   /* 自愈守卫：绕过 goldfish 模拟器 BSS 被覆盖的缺陷 */
 
-/* 类别名称表：由训练脚本 gesture_labels.txt 生成后替换（占位示例） */
+/* 类别名称表：顺序与 模型/gesture_labels.txt 一致（由训练脚本按目录名排序生成）
+ * 当前 12 类：0-10 数字 + 谢谢（你好素材到位后补） */
 static const char *s_labels[] = {
-  "0 零", "1 一", "2 二", "3 三", "4 四",
-  "5 五", "6 六", "7 七", "8 八", "9 九",
-  "你好", "谢谢",
+  "0 零", "10 十", "1 一", "2 二", "3 三", "4 四",
+  "5 五", "6 六", "7 七", "8 八", "9 九", "谢谢",
 };
 
 /* goldfish 模拟器的应用 BSS 可能被启动期代码覆盖，首次使用时重新初始化 */

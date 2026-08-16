@@ -136,6 +136,14 @@ def main():
         units, tmp_frames = load_images_from(class_dir)
         print(f"[{cls}] 素材单元 {len(units)} 个")
 
+        # 跳过无素材的类（如已建目录但还没采集的"你好"）
+        if not units:
+            print(f"  → 跳过（无素材）")
+            for t in tmp_frames:
+                if os.path.exists(t):
+                    os.remove(t)
+            continue
+
         # 读取并缩放
         unit_imgs = []          # [(unit_id, img)]
         for unit_id, p in units:
