@@ -34,6 +34,7 @@ static lv_obj_t *s_threshold_slider = nullptr;
 static int s_threshold = 60;
 static int s_mode = UI_MODE_DIGITS;
 static int s_class_count = 0;
+static int s_ui_guard = 0;   /* 自愈守卫：绕过 goldfish 模拟器 BSS 被覆盖的缺陷 */
 
 /* 类别名称表：由训练脚本 gesture_labels.txt 生成后替换（占位示例） */
 static const char *s_labels[] = {
@@ -41,6 +42,17 @@ static const char *s_labels[] = {
   "5 五", "6 六", "7 七", "8 八", "9 九",
   "你好", "谢谢",
 };
+
+/* goldfish 模拟器的应用 BSS 可能被启动期代码覆盖，首次使用时重新初始化 */
+static void ui_state_ensure(void)
+{
+  if (s_ui_guard != 0x5a5a5a5a)
+    {
+      s_ui_guard     = 0x5a5a5a5a;
+      s_threshold    = 60;
+      s_class_count  = (int)(sizeof(s_labels) / sizeof(s_labels[0]));
+    }
+}
 
 /* 预览画布缓冲（320x180 ARGB8888 占位；TODO: 相机帧直接用） */
 #define PREVIEW_W 320
@@ -139,6 +151,8 @@ void ui_show_result(int class_index, int confidence)
 {
   char buf[64];
 
+  ui_state_ensure();
+
   if (class_index < 0 || class_index >= s_class_count)
     {
       std::snprintf(buf, sizeof(buf), "未知手势 (%d%%)", confidence);
@@ -148,9 +162,6 @@ void ui_show_result(int class_index, int confidence)
       std::snprintf(buf, sizeof(buf), "%s  (%d%%)",
                     s_labels[class_index], confidence);
     }
-
-  /* 调试：确认推理定时器在驱动 UI 更新 */
-  std::printf("ui: result=%s\n", buf);
 
   lv_label_set_text(s_result_label, buf);
   lv_bar_set_value(s_conf_bar, confidence, LV_ANIM_ON);
@@ -168,6 +179,7 @@ void ui_update_preview(void *frame)
 
 int ui_get_threshold(void)
 {
+  ui_state_ensure();
   return s_threshold;
 }
 

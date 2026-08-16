@@ -196,11 +196,24 @@ int recognition_class_count(void)
 
 static int s_sim_class = 0;
 static int s_sim_frame = 0;
+static int s_sim_guard  = 0;   /* 自愈守卫：绕过 goldfish 模拟器 BSS 被 boot 期覆盖的缺陷 */
+static int s_data_probe = 0x12345678;   /* .data 段探针：非零初始值 */
+
+/* goldfish 模拟器的应用 BSS 可能被启动期代码覆盖（KASAN/初始化流程），
+ * 首次调用时用魔法值校验并重新初始化状态。板端（RISC-V）无此问题。 */
+static void sim_state_ensure(void)
+{
+  if (s_sim_guard != 0x5a5a5a5a)
+    {
+      s_sim_guard  = 0x5a5a5a5a;
+      s_sim_class = 0;
+      s_sim_frame = 0;
+    }
+}
 
 int recognition_init(void)
 {
-  s_sim_class = 0;
-  s_sim_frame = 0;
+  sim_state_ensure();
   std::printf("recognition: SIM 模式（无 TFLM，轮换 %d 类演示）\n",
               SIM_CLASS_COUNT);
   return RECOGNITION_OK;
@@ -214,6 +227,8 @@ int recognition_infer(const camera_frame_t *frame,
       return RECOGNITION_ERR_INFER;
     }
 
+  sim_state_ensure();
+
   /* 每 SIM_FRAME_STEP 帧轮换类别，模拟"识别到不同手势" */
   if (++s_sim_frame >= SIM_FRAME_STEP)
     {
@@ -224,11 +239,6 @@ int recognition_infer(const camera_frame_t *frame,
   result->valid       = true;
   result->class_index = s_sim_class;
   result->confidence  = SIM_CONF_BASE + (s_sim_frame * 7) / SIM_FRAME_STEP;
-
-  /* 调试：确认 SIM 内部状态与写入 */
-  std::printf("rec: sim_class=%d sim_frame=%d -> cls=%d conf=%d\n",
-              s_sim_class, s_sim_frame,
-              result->class_index, result->confidence);
   return RECOGNITION_OK;
 }
 
